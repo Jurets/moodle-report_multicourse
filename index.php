@@ -30,9 +30,9 @@ require_once($CFG->libdir.'/adminlib.php');
 
 require_once($CFG->libdir . '/gradelib.php');
 require_once($CFG->dirroot . '/grade/lib.php');
-require_once($CFG->dirroot . '/report/multicourse/lib.php');
 require_once($CFG->libdir . '/coursecatlib.php');
-//require_once($CFG->dirroot . '/grade/report/multigrader/categorylib.php');
+
+require_once($CFG->dirroot . '/report/multicourse/lib.php');
 
 //$PAGE->requires->jquery();
 //$PAGE->requires->jquery_plugin('ui');
@@ -63,34 +63,21 @@ $PAGE->set_url(new moodle_url('/report/multicourse/index.php', []));
 admin_externalpage_setup('reportmulticourse', '', null, '', array('pagelayout'=>'report'));
 echo $OUTPUT->header();
 
-// Basic access checks.
-/*if (!$course = $DB->get_record('course', array('id' => $courseid))) {
-    print_error('nocourseid');
-}*/
 //require_login($course);
-//$context = context_course::instance($course->id);
 $context = context_system::instance();
 
 //require_capability('gradereport/multigrader:view', $context);
 require_capability('moodle/grade:viewall', $context);
 
-// Return tracking object.
-//$gpr = new grade_plugin_return(array('type' => 'report', 'plugin' => 'multigrader', 'courseid' => $courseid, 'page' => $page));
-
 // Last selected report session tracking.
 if (!isset($USER->grade_last_report)) {
     $USER->grade_last_report = array();
 }
-//$USER->grade_last_report[$course->id] = 'multigrader';
-//$USER->grade_last_report[$course->id] = 'multicourse';
 
 // Handle toggle change request.
 //if (!is_null($toggle) && !empty($toggle_type)) {
 //    set_user_preferences(array('grade_report_show' . $toggle_type => $toggle));
 //}
-
-// First make sure we have proper final grades - this must be done before constructing of the grade tree.
-///////grade_regrade_final_grades($courseid);
 
 // Perform actions.
 /*if (!empty($target) && !empty($action) && confirm_sesskey()) {
@@ -135,20 +122,12 @@ echo '<div><input type="submit" name="submitquery" value="' . get_string("submit
 echo '</div>';
 echo '</form>';
 echo '<br/><br/>';*/
-// multi grader form test
-$reporthtml = '';
 
+// multi grader form test
 $cohortid = optional_param('cohortid', 0, PARAM_INT);
 
 if ($cohortid) {
-
     $multireport = new report_multicourse($cohortid);
-
-/*if ($formsubmitted === "Yes") { */
-
-    //$coursebox = optional_param_array('coursebox', 0, PARAM_RAW);
-
-    $reporthtml .= $multireport->get_report();
-    echo $reporthtml;
+    echo $multireport->get_report();
 }
 echo $OUTPUT->footer();

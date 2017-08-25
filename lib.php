@@ -177,7 +177,7 @@ class grade_report_multigrader extends grade_report {
 
         // always initialize all arrays
         $queue = array();
-        $this->load_users();
+        //$this->load_users();
         $this->load_final_grades();
 
         // Were any changes made?
@@ -737,7 +737,7 @@ class grade_report_multigrader extends grade_report {
 
 
 /**
- * Class providing an API for the multi grader report building and displaying.
+ * Class providing an API for the multi course report building and displaying.
  * @uses grade_report
  * @package gradereport_multigrader
  */
@@ -753,21 +753,20 @@ class report_multicourse {
         if (!$cohortid) {
             throw new invalid_parameter_exception('Parameter cohortid can not be empty');
         }
-        $sql = 'SELECT c.id, c.fullname, c.shortname, e.sortorder
-                    FROM mdl_enrol e
-                      LEFT JOIN mdl_course c ON c.id = e.courseid
-                    WHERE e.enrol = :type AND e.customint1 = :cohortid
-                    ORDER BY e.sortorder';
-        $this->_courses = $DB->get_records_sql($sql, ['type' => 'cohort', 'cohortid' => $cohortid]);
+        $this->_courses = $DB->get_records_sql('SELECT c.id, c.fullname, c.shortname, e.sortorder
+            FROM mdl_enrol e
+              LEFT JOIN mdl_course c ON c.id = e.courseid
+            WHERE e.enrol = :type AND e.customint1 = :cohortid
+            ORDER BY e.sortorder', ['type' => 'cohort', 'cohortid' => $cohortid]
+        );
 
         $search = users_search_sql('');
-        $sql = "SELECT u.id,u.picture,u.firstname,u.lastname,u.firstnamephonetic,u.lastnamephonetic,u.middlename,u.alternatename,u.imagealt,u.email,u.department,u.institution
-                FROM {user} u
-                    JOIN {cohort_members} cm ON (cm.userid = u.id AND cm.cohortid = :cohortid)
-                    JOIN {cohort} c ON cm.cohortid = c.id
-                WHERE $search[0]  
-                ORDER BY u.lastname ASC, u.firstname ASC, u.id ASC";
-        $this->_learners = $DB->get_records_sql($sql, array_merge(['cohortid' => $cohortid, 'contextlevel' => CONTEXT_USER], $search[1]));
+        $this->_learners = $DB->get_records_sql("SELECT u.id,u.picture,u.firstname,u.lastname,u.firstnamephonetic,u.lastnamephonetic,u.middlename,u.alternatename,u.imagealt,u.email,u.department,u.institution
+            FROM {user} u
+                JOIN {cohort_members} cm ON (cm.userid = u.id AND cm.cohortid = :cohortid)
+                JOIN {cohort} c ON cm.cohortid = c.id
+            WHERE $search[0]  
+            ORDER BY u.lastname ASC, u.firstname ASC, u.id ASC", array_merge(['cohortid' => $cohortid, 'contextlevel' => CONTEXT_USER], $search[1]));
     }
 
     public function get_courses() {
@@ -779,11 +778,19 @@ class report_multicourse {
     }
 
     public function get_report($page = 0, $sortitemid = 0) {
-        $reporthtml = '';
+        global $OUTPUT;
+        
+        $is_first = true;
+
+        $transtable = new html_table();
 
         foreach ($this->_courses as $thiscourse) {
             $courseid = $thiscourse->id;
             $context = context_course::instance($courseid);
+
+            // First make sure we have proper final grades - this must be done before constructing of the grade tree.
+            grade_regrade_final_grades($courseid);
+
             if (has_capability('moodle/grade:viewall', $context)) {
                 if (has_capability('gradereport/multicourse:view', $context)) {
 
@@ -791,8 +798,8 @@ class report_multicourse {
 
                     // Initialise the multi grader report object that produces the table
                     // The class grade_report_grader_ajax was removed as part of MDL-21562.
-                    $report = new report_cohortcourses($courseid, $gpr, $context, $this->_learners, $page, $sortitemid);
-
+                    $report = new report_cohortcourses($courseid, $gpr, $context, $this->_learners, $is_first, $page, $sortitemid);
+                    $is_first = false;
                     // Processing posted grades & feedback here.
                     if ($data = data_submitted() and confirm_sesskey() and has_capability('moodle/grade:edit', $context)) {
                         $warnings = $report->process_data($data);
@@ -804,14 +811,10 @@ class report_multicourse {
                     $report->load_final_grades();
 
                     // Show warnings if any.
-                    foreach ($warnings as $warning) {
+                    /*foreach ($warnings as $warning) {
                         echo $OUTPUT->notification($warning);
-                    }
-
-                    $reporthtml .= $report->get_reporthtml();
-
-                    // Print submit button.
-                    //echo $reporthtml;
+                    }*/
+                    $transtable = $report->grade_transtable($transtable);
 
                     // Prints paging bar at bottom for large pages.
                     /*if (!empty($studentsperpage) && $studentsperpage >= 20) {
@@ -819,9 +822,8 @@ class report_multicourse {
                     }*/
                 }
             }
-            //break; /////////////////////TEMPORARY!!!!!!!!!!!!!!!!!!!
         }
-        return $reporthtml;
+        return $OUTPUT->container(html_writer::table($transtable), 'gradeparent');
     }
 }
 
@@ -830,105 +832,91 @@ class report_multicourse {
  */
 class report_cohortcourses extends grade_report_multigrader {
 
-    public function __construct($courseid, $gpr, $context, $users = [], $page = null, $sortitemid = null)
+    private $is_first = true;
+
+    public function __construct($courseid, $gpr, $context, $users = [], $is_first = true, $page = null, $sortitemid = null)
     {
         global $CFG, $DB;
         parent::__construct($courseid, $gpr, $context, $page, $sortitemid);
-        //if (!$this->users)
-        {
-            if (!empty($users)) {
-                $this->users = $users;
-                list($usql, $uparams) = $DB->get_in_or_equal(array_keys($this->users), SQL_PARAMS_NAMED, 'usid0');
-                $this->userselect = "AND g.userid $usql";
-                $this->userselect_params = $uparams;
-            } else {
-                $this->load_users();
-            }
+
+        $this->is_first = $is_first;
+        if (!empty($users)) {
+            $this->users = $users;
+            list($usql, $uparams) = $DB->get_in_or_equal(array_keys($this->users), SQL_PARAMS_NAMED, 'usid0');
+            $this->userselect = "AND g.userid $usql";
+            $this->userselect_params = $uparams;
+        } else {
+            $this->load_users();
         }
     }
 
-    /**
-     * Depending on the style of report (fixedstudents vs traditional one-table),
-     * arranges the rows of data in one or two tables, and returns the output of
-     * these tables in HTML
-     * @return string HTML
-     */
-    public function get_reporthtml() {
-        global $OUTPUT;
-
-        $html = '';
-        $transtable = $this->grade_transtable();
-        $html .= $transtable;
-
-        return $OUTPUT->container($html, 'gradeparent');
-    }
-
     // new table - transponired
-    public function grade_transtable() {
+    public function grade_transtable(html_table $transtable) {
         global $CFG, $USER, $OUTPUT, $DB, $PAGE;
 
         $showuserimage = $this->get_pref('showuserimage');
 
-        $transtable = new html_table();
         $transtable->attributes['class'] = 'gradestable flexible boxaligncenter generaltable';
         $transtable->id = 'user-grades';
 
         // build header
-        $headerrow = new html_table_row();
-        $headerrow->attributes['class'] = 'heading';
+        if ($this->is_first) {
+            $headerrow = new html_table_row();
+            $headerrow->attributes['class'] = 'heading';
 
-        $courseheader = new html_table_cell();
-        $courseheader->attributes['class'] = 'header';
-        $courseheader->scope = 'col';
-        $courseheader->header = true;
-        $courseheader->id = 'courseheader';
-        /*if (has_capability('gradereport/' . $CFG->grade_profilereport . ':view', $this->context)) {
-            $courseheader->colspan = 2;
-        }*/
-        $courseheader->text = 'Course name'; //$arrows['studentname'];
+            $courseheader = new html_table_cell();
+            $courseheader->attributes['class'] = 'header';
+            $courseheader->scope = 'col';
+            $courseheader->header = true;
+            $courseheader->id = 'courseheader';
+            /*if (has_capability('gradereport/' . $CFG->grade_profilereport . ':view', $this->context)) {
+                $courseheader->colspan = 2;
+            }*/
+            $courseheader->text = 'Course name'; //$arrows['studentname'];
 
-        $headerrow->cells[] = $courseheader;
+            $headerrow->cells[] = $courseheader;
 
-        $rowclasses = array('even', 'odd');
+            $rowclasses = array('even', 'odd');
 
-        $suspendedstring = null;
-        foreach ($this->users as $userid => $user) {
-            /*$userrow = new html_table_row();
-            $userrow->id = 'fixed_user_' . $userid;
-            $userrow->attributes['class'] = 'r' . $this->rowcount++ . ' ' . $rowclasses[$this->rowcount % 2];*/
+            $suspendedstring = null;
+            foreach ($this->users as $userid => $user) {
+                /*$userrow = new html_table_row();
+                $userrow->id = 'fixed_user_' . $userid;
+                $userrow->attributes['class'] = 'r' . $this->rowcount++ . ' ' . $rowclasses[$this->rowcount % 2];*/
 
-            $usercell = new html_table_cell();
-            $usercell->attributes['class'] = 'user';
-            $usercell->header = true;
-            $usercell->scope = 'row';
-            $link = html_writer::link(new moodle_url('/user/view.php', array('id' => $user->id, 'course' => $this->course->id)), fullname($user));
-            $usercell->text = ($showuserimage ? $OUTPUT->user_picture($user) : '') . $link;
+                $usercell = new html_table_cell();
+                $usercell->attributes['class'] = 'user';
+                $usercell->header = true;
+                $usercell->scope = 'row';
+                $link = html_writer::link(new moodle_url('/user/view.php', array('id' => $user->id, 'course' => $this->course->id)), fullname($user));
+                $usercell->text = ($showuserimage ? $OUTPUT->user_picture($user) : '') . $link;
 
-            if (!empty($user->suspendedenrolment)) {
-                $usercell->attributes['class'] .= ' usersuspended';
-                //may be lots of suspended users so only get the string once
-                if (empty($suspendedstring)) {
-                    $suspendedstring = get_string('userenrolmentsuspended', 'grades');
+                if (!empty($user->suspendedenrolment)) {
+                    $usercell->attributes['class'] .= ' usersuspended';
+                    //may be lots of suspended users so only get the string once
+                    if (empty($suspendedstring)) {
+                        $suspendedstring = get_string('userenrolmentsuspended', 'grades');
+                    }
+                    $usercell->text .= html_writer::empty_tag('img', array('src' => $OUTPUT->pix_url('i/enrolmentsuspended'), 'title' => $suspendedstring, 'alt' => $suspendedstring, 'class' => 'usersuspendedicon'));
                 }
-                $usercell->text .= html_writer::empty_tag('img', array('src' => $OUTPUT->pix_url('i/enrolmentsuspended'), 'title' => $suspendedstring, 'alt' => $suspendedstring, 'class' => 'usersuspendedicon'));
-            }
 
-            if (has_capability('gradereport/' . $CFG->grade_profilereport . ':view', $this->context)) {
-                /*$userreportcell = new html_table_cell();
-                $userreportcell->attributes['class'] = 'userreport';
-                $userreportcell->header = true;*/
-                $a = new stdClass();
-                $a->user = fullname($user);
-                $strgradesforuser = get_string('gradesforuser', 'grades', $a);
-                $url = new moodle_url('/grade/report/' . $CFG->grade_profilereport . '/index.php', array('userid' => $user->id, 'id' => $this->course->id));
-                //$userreportcell->text = $OUTPUT->action_icon($url, new pix_icon('t/grades', $strgradesforuser));
-                //$userreportcell->text = $OUTPUT->action_icon($url, new pix_icon('t/grades', $strgradesforuser));
-                //$userrow->cells[] = $userreportcell;
-                $usercell->text .= $OUTPUT->action_icon($url, new pix_icon('t/grades', $strgradesforuser));
+                if (has_capability('gradereport/' . $CFG->grade_profilereport . ':view', $this->context)) {
+                    /*$userreportcell = new html_table_cell();
+                    $userreportcell->attributes['class'] = 'userreport';
+                    $userreportcell->header = true;*/
+                    $a = new stdClass();
+                    $a->user = fullname($user);
+                    $strgradesforuser = get_string('gradesforuser', 'grades', $a);
+                    $url = new moodle_url('/grade/report/' . $CFG->grade_profilereport . '/index.php', array('userid' => $user->id, 'id' => $this->course->id));
+                    //$userreportcell->text = $OUTPUT->action_icon($url, new pix_icon('t/grades', $strgradesforuser));
+                    //$userreportcell->text = $OUTPUT->action_icon($url, new pix_icon('t/grades', $strgradesforuser));
+                    //$userrow->cells[] = $userreportcell;
+                    $usercell->text .= $OUTPUT->action_icon($url, new pix_icon('t/grades', $strgradesforuser));
+                }
+                $headerrow->cells[] = $usercell;
             }
-            $headerrow->cells[] = $usercell;
+            $transtable->data[] = $headerrow;
         }
-        $transtable->data[] = $headerrow;
 
         // --------------- build body: courses + mods + grades
         $rows = array();
@@ -1118,9 +1106,8 @@ class report_cohortcourses extends grade_report_multigrader {
                 $transtable->data[] = $graderow;
             }
         }
-
-        return html_writer::table($transtable);
+        //return html_writer::table($transtable);
+        return $transtable;
     }
 
 }
-
