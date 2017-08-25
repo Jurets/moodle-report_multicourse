@@ -1532,6 +1532,23 @@ class grade_report_multigrader extends grade_report {
  */
 class report_multicourse extends grade_report_multigrader {
 
+    public function __construct($courseid, $gpr, $context, $users = [], $page = null, $sortitemid = null)
+    {
+        global $CFG, $DB;
+        parent::__construct($courseid, $gpr, $context, $page, $sortitemid);
+        //if (!$this->users)
+        {
+            if (!empty($users)) {
+                $this->users = $users;
+                list($usql, $uparams) = $DB->get_in_or_equal(array_keys($this->users), SQL_PARAMS_NAMED, 'usid0');
+                $this->userselect = "AND g.userid $usql";
+                $this->userselect_params = $uparams;
+            } else {
+                $this->load_users();
+            }
+        }
+    }
+
     /**
      * Builds and returns the rows that will make up the left part of the grader report
      * This consists of student names and icons, links to user reports and id numbers, as well
@@ -1812,7 +1829,6 @@ class report_multicourse extends grade_report_multigrader {
                     $itemcell->attributes['class'] = 'category ' . $catlevel;
                     //$link = html_writer::link(new moodle_url('/user/view.php', array('id' => $user->id, 'course' => $this->course->id)), fullname($user));
                     $thiscourse = $this->gtree->modinfo->get_course();
-                    // html_writer::tag('p', '<b><a href="' . $CFG->wwwroot . '/grade/report/grader/index.php?id=' . $thiscourse->id . '">' . $thiscourse->shortname . '</a></b>');
                     $itemcell->text = html_writer::link(new moodle_url('/grade/report/grader/index.php', ['id' => $thiscourse->id]), $thiscourse->shortname); // . ', ' . shorten_text($element['object']->get_name());
                     $itemcell->text .= $this->get_collapsing_icon($element);
                     $graderow->cells[] = $itemcell;
@@ -1953,7 +1969,6 @@ class report_multicourse extends grade_report_multigrader {
         }
 
         return html_writer::table($transtable);
-
     }
 
 }

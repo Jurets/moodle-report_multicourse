@@ -146,6 +146,19 @@ if ($cohortid) {
                     WHERE e.enrol = :type AND e.customint1 = :cohortid
                     ORDER BY e.sortorder';
     $courses = $DB->get_records_sql($sql, ['type'=>'cohort', 'cohortid' => $cohortid]);
+
+    $search = users_search_sql('');
+    //$cohort = $DB->get_record('cohort', ['name'=>'Grade 10 2017'], 'id, name', MUST_EXIST);
+    //$sql = "SELECT u.id as user_id, u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename, u.firstname, u.lastname, u.email, u.institution, c.name as cohort_name, ctx.id AS user_contextid
+    //JOIN {context} ctx ON u.id = ctx.instanceid AND ctx.contextlevel = :contextlevel
+    $sql = "SELECT u.id,u.picture,u.firstname,u.lastname,u.firstnamephonetic,u.lastnamephonetic,u.middlename,u.alternatename,u.imagealt,u.email,u.department,u.institution
+                FROM {user} u
+                    JOIN {cohort_members} cm ON (cm.userid = u.id AND cm.cohortid = :cohortid)
+                    JOIN {cohort} c ON cm.cohortid = c.id
+                WHERE $search[0]  
+                ORDER BY u.lastname ASC, u.firstname ASC, u.id ASC";
+    $learners = $DB->get_records_sql($sql, array_merge(['cohortid'=>$cohortid, 'contextlevel'=>CONTEXT_USER], $search[1]));
+
 //}
 
 /*if ($formsubmitted === "Yes") { */
@@ -174,39 +187,13 @@ if ($cohortid) {
             if (has_capability('moodle/grade:viewall', $context)) {
                 if (has_capability('gradereport/multicourse:view', $context)) {
 
-                    //echo '<br/><br/><hr/>';
                     echo '<br/><hr/>';
                     echo html_writer::tag('p', '<b><a href="' . $CFG->wwwroot . '/grade/report/grader/index.php?id=' . $thiscourse->id . '">' . $thiscourse->shortname . '</a></b>');
-                    //echo '<br/>';
-//                    $exportxlsurl = new moodle_url('/grade/export/xls/index.php', array('id' => $thiscourse->id));
-//                    $xlsicon = html_writer::img($CFG->wwwroot . '/grade/report/multigrader/pix/excel.gif', get_string('xls:view', 'gradeexport_xls'));
-//
-//                    echo html_writer::div(html_writer::link($exportxlsurl, $xlsicon), 'export_padding');
-//                    $exportodsurl = new moodle_url('/grade/export/ods/index.php', array('id' => $thiscourse->id));
-//                    $odsicon = html_writer::img($CFG->wwwroot . '/grade/report/multigrader/pix/ods.gif', get_string('ods:view', 'gradeexport_ods'));
-//
-//                    echo html_writer::div(html_writer::link($exportodsurl, $odsicon), 'export_padding');
-//                    $exportxmlurl = new moodle_url('/grade/export/xml/index.php', array('id' => $thiscourse->id));
-//                    $xmlicon = html_writer::img($CFG->wwwroot . '/grade/report/multigrader/pix/xml.gif',
-//                            get_string('xml:view', 'gradeexport_xml'));
-//
-//                    echo html_writer::div(html_writer::link($exportxmlurl, $xmlicon), 'export_padding');
-//                    $exporttxturl = new moodle_url('/grade/export/txt/index.php', array('id' => $thiscourse->id));
-//                    $txticon = html_writer::img($CFG->wwwroot . '/grade/report/multigrader/pix/text.gif', get_string('txt:view', 'gradeexport_txt'));
-//
-//                    echo html_writer::div(html_writer::link($exporttxturl, $txticon), 'export_padding');
-                    $gpr = new grade_plugin_return(array('type' => 'report', 'plugin' => 'multigrader', 'courseid' => $courseid, 'page' => $page));
-                    // Basic access checks.
-                    /*$conditions = array("id" => $thiscourse->id);
-                    if (!$course = $DB->get_record('course', $conditions)) {
-                        print_error('nocourseid');
-                    }*/
-
-                    //$context = context_course::instance($thiscourse->id);
+                    $gpr = new grade_plugin_return(array('type' => 'report', 'plugin' => 'multicourse', 'courseid' => $courseid, 'page' => $page));
 
                     // Initialise the multi grader report object that produces the table
                     // The class grade_report_grader_ajax was removed as part of MDL-21562.
-                    $report = new report_multicourse($courseid, $gpr, $context, $page, $sortitemid);
+                    $report = new grade_report_multigrader($courseid, $gpr, $context, $page, $sortitemid);
 
                     // Processing posted grades & feedback here.
                     if ($data = data_submitted() and confirm_sesskey() and has_capability('moodle/grade:edit', $context)) {
@@ -229,6 +216,42 @@ if ($cohortid) {
                     // Don't use paging if studentsperpage is empty or 0 at course AND site levels.
                     if (!empty($studentsperpage)) {
                         echo $OUTPUT->paging_bar($numusers, $report->page, $studentsperpage, $report->pbarurl);
+                    }
+
+                    $reporthtml = $report->get_grade_table();
+
+                    // Print submit button.
+                    echo $reporthtml;
+
+                    // Prints paging bar at bottom for large pages.
+                    if (!empty($studentsperpage) && $studentsperpage >= 20) {
+                        echo $OUTPUT->paging_bar($numusers, $report->page, $studentsperpage, $report->pbarurl);
+                    }
+                }
+            }
+        }
+
+        foreach ($courses as $thiscourse) {
+            $courseid = $thiscourse->id;
+            $context = context_course::instance($courseid);
+            if (has_capability('moodle/grade:viewall', $context)) {
+                if (has_capability('gradereport/multicourse:view', $context)) {
+
+                    //echo '<br/><hr/>';
+                    //echo html_writer::tag('p', '<b><a href="' . $CFG->wwwroot . '/grade/report/grader/index.php?id=' . $thiscourse->id . '">' . $thiscourse->shortname . '</a></b>');
+                    $gpr = new grade_plugin_return(array('type' => 'report', 'plugin' => 'multicourse', 'courseid' => $courseid, 'page' => $page));
+
+                    // Initialise the multi grader report object that produces the table
+                    // The class grade_report_grader_ajax was removed as part of MDL-21562.
+                    $report = new report_multicourse($courseid, $gpr, $context, $learners, $page, $sortitemid);
+
+                    // Final grades MUST be loaded after the processing.
+                    $numusers = $report->get_numusers();
+                    $report->load_final_grades();
+
+                    // Show warnings if any.
+                    foreach ($warnings as $warning) {
+                        echo $OUTPUT->notification($warning);
                     }
 
                     $reporthtml = $report->get_grade_table();
