@@ -1530,7 +1530,91 @@ class grade_report_multigrader extends grade_report {
  * @uses grade_report
  * @package gradereport_multigrader
  */
-class report_multicourse extends grade_report_multigrader {
+class report_multicourse {
+
+    protected $_courses;
+    protected $_learners;
+
+    public function __construct($cohortid)
+    {
+        global $DB;
+
+        if (!$cohortid) {
+            throw new invalid_parameter_exception('Parameter cohortid can not be empty');
+        }
+        $sql = 'SELECT c.id, c.fullname, c.shortname, e.sortorder
+                    FROM mdl_enrol e
+                      LEFT JOIN mdl_course c ON c.id = e.courseid
+                    WHERE e.enrol = :type AND e.customint1 = :cohortid
+                    ORDER BY e.sortorder';
+        $this->_courses = $DB->get_records_sql($sql, ['type' => 'cohort', 'cohortid' => $cohortid]);
+
+        $search = users_search_sql('');
+        $sql = "SELECT u.id,u.picture,u.firstname,u.lastname,u.firstnamephonetic,u.lastnamephonetic,u.middlename,u.alternatename,u.imagealt,u.email,u.department,u.institution
+                FROM {user} u
+                    JOIN {cohort_members} cm ON (cm.userid = u.id AND cm.cohortid = :cohortid)
+                    JOIN {cohort} c ON cm.cohortid = c.id
+                WHERE $search[0]  
+                ORDER BY u.lastname ASC, u.firstname ASC, u.id ASC";
+        $this->_learners = $DB->get_records_sql($sql, array_merge(['cohortid' => $cohortid, 'contextlevel' => CONTEXT_USER], $search[1]));
+    }
+
+    public function get_courses() {
+        return $this->_courses;
+    }
+
+    public function get_learners() {
+        return $this->_learners;
+    }
+
+    public function get_report($page = 0, $sortitemid = 0) {
+        $reporthtml = '';
+
+        foreach ($this->_courses as $thiscourse) {
+            $courseid = $thiscourse->id;
+            $context = context_course::instance($courseid);
+            if (has_capability('moodle/grade:viewall', $context)) {
+                if (has_capability('gradereport/multicourse:view', $context)) {
+
+                    $gpr = new grade_plugin_return(array('type' => 'report', 'plugin' => 'multicourse', 'courseid' => $courseid, 'page' => $page));
+
+                    // Initialise the multi grader report object that produces the table
+                    // The class grade_report_grader_ajax was removed as part of MDL-21562.
+                    $report = new report_cohortcourses($courseid, $gpr, $context, $this->_learners, $page, $sortitemid);
+
+                    // Processing posted grades & feedback here.
+                    if ($data = data_submitted() and confirm_sesskey() and has_capability('moodle/grade:edit', $context)) {
+                        $warnings = $report->process_data($data);
+                    } else {
+                        $warnings = array();
+                    }
+                    // Final grades MUST be loaded after the processing.
+                    //$numusers = $report->get_numusers();
+                    $report->load_final_grades();
+
+                    // Show warnings if any.
+                    foreach ($warnings as $warning) {
+                        echo $OUTPUT->notification($warning);
+                    }
+
+                    $reporthtml .= $report->get_grade_table();
+
+                    // Print submit button.
+                    //echo $reporthtml;
+
+                    // Prints paging bar at bottom for large pages.
+                    /*if (!empty($studentsperpage) && $studentsperpage >= 20) {
+                        echo $OUTPUT->paging_bar($numusers, $report->page, $studentsperpage, $report->pbarurl);
+                    }*/
+                }
+            }
+            //break; /////////////////////TEMPORARY!!!!!!!!!!!!!!!!!!!
+        }
+        return $reporthtml;
+    }
+}
+
+class report_cohortcourses extends grade_report_multigrader {
 
     public function __construct($courseid, $gpr, $context, $users = [], $page = null, $sortitemid = null)
     {
