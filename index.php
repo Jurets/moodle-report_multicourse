@@ -148,55 +148,6 @@ if ($cohortid) {
 
     //$coursebox = optional_param_array('coursebox', 0, PARAM_RAW);
 
-    $courses = $multireport->get_courses();
-    $learners = $multireport->get_learners();
-
-    foreach ($courses as $thiscourse) {
-        $courseid = $thiscourse->id;
-        $context = context_course::instance($courseid);
-        if (has_capability('moodle/grade:viewall', $context)) {
-            if (has_capability('gradereport/multicourse:view', $context)) {
-
-                echo '<br/><hr/>';
-                echo html_writer::tag('p', '<b><a href="' . $CFG->wwwroot . '/grade/report/grader/index.php?id=' . $thiscourse->id . '">' . $thiscourse->shortname . '</a></b>');
-                $gpr = new grade_plugin_return(array('type' => 'report', 'plugin' => 'multicourse', 'courseid' => $courseid, 'page' => $page));
-
-                // Initialise the multi grader report object that produces the table
-                // The class grade_report_grader_ajax was removed as part of MDL-21562.
-                $report = new grade_report_multigrader($courseid, $gpr, $context, $page, $sortitemid);
-
-                // Processing posted grades & feedback here.
-                if ($data = data_submitted() and confirm_sesskey() and has_capability('moodle/grade:edit', $context)) {
-                    $warnings = $report->process_data($data);
-                } else {
-                    $warnings = array();
-                }
-                // Final grades MUST be loaded after the processing.
-                $report->load_users();
-                $numusers = $report->get_numusers();
-                $report->load_final_grades();
-
-                //echo '<div class="clearer"></div>';
-                // Show warnings if any.
-                foreach ($warnings as $warning) {
-                    echo $OUTPUT->notification($warning);
-                }
-
-                $studentsperpage = $report->get_students_per_page();
-                // Don't use paging if studentsperpage is empty or 0 at course AND site levels.
-                if (!empty($studentsperpage)) {
-                    echo $OUTPUT->paging_bar($numusers, $report->page, $studentsperpage, $report->pbarurl);
-                }
-                echo $report->get_grade_table();
-
-                // Prints paging bar at bottom for large pages.
-                if (!empty($studentsperpage) && $studentsperpage >= 20) {
-                    echo $OUTPUT->paging_bar($numusers, $report->page, $studentsperpage, $report->pbarurl);
-                }
-            }
-        }
-    }
-
     $reporthtml .= $multireport->get_report();
     echo $reporthtml;
 }
