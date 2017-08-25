@@ -1686,7 +1686,7 @@ class report_multicourse extends grade_report_multigrader {
             $row->cells = array_merge($row->cells, $rightrows[$key]->cells);
             $fulltable->data[] = $row;
         }
-        $html .= html_writer::table($fulltable);
+        //$html .= html_writer::table($fulltable);
 
         /////////////////////////
         $transtable = $this->grade_transtable();
@@ -1721,9 +1721,6 @@ class report_multicourse extends grade_report_multigrader {
 
         $headerrow->cells[] = $courseheader;
 
-        //$rows[] = $headerrow;
-        //$rows = $this->get_left_icons_row($rows, $colspan);
-
         $rowclasses = array('even', 'odd');
 
         $suspendedstring = null;
@@ -1736,24 +1733,17 @@ class report_multicourse extends grade_report_multigrader {
             $usercell->attributes['class'] = 'user';
             $usercell->header = true;
             $usercell->scope = 'row';
-
-            if ($showuserimage) {
-                $usercell->text = $OUTPUT->user_picture($user);
-            }
-
-            $usercell->text .= html_writer::link(new moodle_url('/user/view.php', array('id' => $user->id, 'course' => $this->course->id)), fullname($user));
+            $link = html_writer::link(new moodle_url('/user/view.php', array('id' => $user->id, 'course' => $this->course->id)), fullname($user));
+            $usercell->text = ($showuserimage ? $OUTPUT->user_picture($user) : '') . $link;
 
             if (!empty($user->suspendedenrolment)) {
                 $usercell->attributes['class'] .= ' usersuspended';
-
                 //may be lots of suspended users so only get the string once
                 if (empty($suspendedstring)) {
                     $suspendedstring = get_string('userenrolmentsuspended', 'grades');
                 }
                 $usercell->text .= html_writer::empty_tag('img', array('src' => $OUTPUT->pix_url('i/enrolmentsuspended'), 'title' => $suspendedstring, 'alt' => $suspendedstring, 'class' => 'usersuspendedicon'));
             }
-
-            //$userrow->cells[] = $usercell;
 
             if (has_capability('gradereport/' . $CFG->grade_profilereport . ':view', $this->context)) {
                 /*$userreportcell = new html_table_cell();
@@ -1768,19 +1758,7 @@ class report_multicourse extends grade_report_multigrader {
                 //$userrow->cells[] = $userreportcell;
                 $usercell->text .= $OUTPUT->action_icon($url, new pix_icon('t/grades', $strgradesforuser));
             }
-
             $headerrow->cells[] = $usercell;
-
-            /*foreach ($extrafields as $field) {
-                $fieldcell = new html_table_cell();
-                $fieldcell->attributes['class'] = 'header userfield user' . $field;
-                $fieldcell->header = true;
-                $fieldcell->scope = 'row';
-                $fieldcell->text = $user->{$field};
-                $userrow->cells[] = $fieldcell;
-            }*/
-
-            //$rows[] = $userrow;
         }
         $transtable->data[] = $headerrow;
 
@@ -1818,45 +1796,30 @@ class report_multicourse extends grade_report_multigrader {
                 $object = $element['object'];
                 $type = $element['type'];
                 $categorystate = @$element['categorystate'];
+                //$colspan = !empty($element['colspan'])? $element['colspan'] : 1;
+                $colspan = count($this->users) + 1;
+                $catlevel = !empty($element['depth']) ? 'catlevel' . $element['depth'] : '';
 
-                if (!empty($element['colspan'])) {
-                    $colspan = $element['colspan'];
-                } else {
-                    $colspan = 1;
-                }
-
-                if (!empty($element['depth'])) {
-                    $catlevel = 'catlevel' . $element['depth'];
-                } else {
-                    $catlevel = '';
-                }
-
-// Element is a filler
-                if ($type == 'filler' or $type == 'fillerfirst' or $type == 'fillerlast') {
-                    $fillercell = new html_table_cell();
-                    $fillercell->attributes['class'] = $type . ' ' . $catlevel;
-                    $fillercell->colspan = $colspan;
-                    $fillercell->text = '&nbsp;';
-                    $fillercell->header = true;
-                    $fillercell->scope = 'col';
-                    $graderow->cells[] = $fillercell;
-                }
-// Element is a category
-                else if ($type == 'category') {
-                    $categorycell = new html_table_cell();
-                    $categorycell->attributes['class'] = 'category ' . $catlevel;
-                    $categorycell->colspan = $colspan;
-                    $categorycell->text = shorten_text($element['object']->get_name());
-                    $categorycell->text .= $this->get_collapsing_icon($element);
-                    $categorycell->header = true;
-                    $categorycell->scope = 'col';
-                    $graderow->cells[] = $categorycell;
-                }
-// Element is a grade_item
-                else {
+                $itemcell = new html_table_cell();
+                $itemcell->header = true;
+                $itemcell->scope = 'col';
+                $itemcell->colspan = $colspan;
+                if ($type == 'filler' or $type == 'fillerfirst' or $type == 'fillerlast') { // Element is a filler
+                    $itemcell->attributes['class'] = $type . ' ' . $catlevel;
+                    $itemcell->text = '&nbsp;';
+                    $graderow->cells[] = $itemcell;
+                } else if ($type == 'category') { // Element is a category
+                    $itemcell->attributes['class'] = 'category ' . $catlevel;
+                    //$link = html_writer::link(new moodle_url('/user/view.php', array('id' => $user->id, 'course' => $this->course->id)), fullname($user));
+                    $thiscourse = $this->gtree->modinfo->get_course();
+                    // html_writer::tag('p', '<b><a href="' . $CFG->wwwroot . '/grade/report/grader/index.php?id=' . $thiscourse->id . '">' . $thiscourse->shortname . '</a></b>');
+                    $itemcell->text = html_writer::link(new moodle_url('/grade/report/grader/index.php', ['id' => $thiscourse->id]), $thiscourse->shortname); // . ', ' . shorten_text($element['object']->get_name());
+                    $itemcell->text .= $this->get_collapsing_icon($element);
+                    $graderow->cells[] = $itemcell;
+                } else { // Element is a grade_item
                     //$itemmodule = $element['object']->itemmodule;
                     //$iteminstance = $element['object']->iteminstance;
-
+                    //$colspan = 1;
                     if ($element['object']->id == $this->sortitemid) {
                         if ($this->sortorder == 'ASC') {
                             $arrow = $this->get_sort_arrow('up', $sortlink);
@@ -1868,25 +1831,21 @@ class report_multicourse extends grade_report_multigrader {
                     }
 
                     $headerlink = $this->gtree->get_element_header($element, true, $this->get_pref('showactivityicons'), false);
+                    $itemcell->text = shorten_text($headerlink);
 
-                    $itemcell = new html_table_cell();
                     $itemcell->attributes['class'] = $type . ' ' . $catlevel . ' highlightable';
 
                     if ($element['object']->is_hidden()) {
                         $itemcell->attributes['class'] .= ' dimmed_text';
                     }
-
-                    $itemcell->colspan = $colspan;
-                    $itemcell->text = shorten_text($headerlink);
+                    $itemcell->colspan = 1; //$colspan
                     $itemcell->header = true;
                     $itemcell->scope = 'col';
-
                     $graderow->cells[] = $itemcell;
 
-                    //$items = $this->gtree->items[$itemid];
+                    // --- users cycle
                     $itemid = $object->id;
                     $item = & $this->gtree->items[$itemid];
-                    // users cycle
                     foreach ($this->users as $userid => $user) {
 
                         if ($this->canviewhidden) {
@@ -1898,7 +1857,6 @@ class report_multicourse extends grade_report_multigrader {
                             $unknown = $hidingaffected['unknown'];
                             unset($hidingaffected);
                         }
-
 
                         $grade = $this->grades[$userid][$item->id];
 
@@ -1918,7 +1876,7 @@ class report_multicourse extends grade_report_multigrader {
 
                         // MDL-11274
                         // Hide grades in the multi grader report if the current grader doesn't have 'moodle/grade:viewhidden'
-                        if (!$this->canviewhidden and $grade->is_hidden()) {
+                        /*if (!$this->canviewhidden and $grade->is_hidden()) {
                             if (!empty($CFG->grade_hiddenasdate) and $grade->get_datesubmitted() and !$item->is_category_item() and !$item->is_course_item()) {
                                 // the problem here is that we do not have the time when grade value was modified, 'timemodified' is general modification date for grade_grades records
                                 $itemcell->text = html_writer::tag('span', userdate($grade->get_datesubmitted(), get_string('strftimedatetimeshort')), array('class' => 'datesubmitted'));
@@ -1927,7 +1885,7 @@ class report_multicourse extends grade_report_multigrader {
                             }
                             $itemrow->cells[] = $itemcell;
                             continue;
-                        }
+                        }*/
 
                         // emulate grade element
                         $eid = $this->gtree->get_grade_eid($grade);
@@ -1943,20 +1901,12 @@ class report_multicourse extends grade_report_multigrader {
                         if ($grade->is_overridden()) {
                             $itemcell->attributes['class'] .= ' overridden';
                         }
-
                         if ($grade->is_excluded()) {
                             // $itemcell->attributes['class'] .= ' excluded';
-                        }
-
-                        if ($grade->is_excluded()) {
                             $itemcell->text .= html_writer::tag('span', get_string('excluded', 'grades'), array('class' => 'excludedfloater'));
                         }
 
-
-                        $hidden = '';
-                        if ($grade->is_hidden()) {
-                            $hidden = ' hidden ';
-                        }
+                        $hidden = $grade->is_hidden() ? ' hidden ' : '';
 
                         $gradepass = ' gradefail ';
                         if ($grade->is_passed($item)) {
@@ -1992,22 +1942,15 @@ class report_multicourse extends grade_report_multigrader {
                                 }
                             }
                         }
-
                         if (!empty($this->gradeserror[$item->id][$userid])) {
                             $itemcell->text .= $this->gradeserror[$item->id][$userid];
                         }
-
-                        //$itemrow->cells[] = $itemcell;
                         $graderow->cells[] = $itemcell;
                     }
                 }
                 $transtable->data[] = $graderow;
             }
-            //$rows[] = $graderow;
         }
-
-
-
 
         return html_writer::table($transtable);
 
