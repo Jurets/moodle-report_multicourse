@@ -29,3 +29,6 @@ $string['pluginname'] = 'Multi Course Report';
 $string['not_courses'] = 'There is not courses for this cohort';
 $string['not_learners'] = 'There is not learners in this cohort';
 $string['to_index'] = 'To cohorts list';
+$string['mod_title'] = 'Course / Activity name';
+$string['grademax_title'] = 'Grade max';
+$string['teacher_title'] = 'Teachers';

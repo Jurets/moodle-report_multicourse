@@ -743,13 +743,13 @@ class grade_report_multigrader extends grade_report {
  */
 class report_multicourse {
 
-    protected $_courses;
+    protected $_courses = [];
     protected $_learners;
     protected $_warnings = [];
 
     public function __construct(stdClass $cohort = null)
     {
-        global $DB;
+        global $DB, $CFG;
 
         if (!$cohort) {
             throw new invalid_parameter_exception('Parameter cohortid can not be empty');
@@ -773,8 +773,6 @@ class report_multicourse {
             ORDER BY u.lastname ASC, u.firstname ASC, u.id ASC", array_merge(['cohortid' => $cohort->id, 'contextlevel' => CONTEXT_USER], $search[1]));
         if (!count($this->_learners)) {
             $this->_warnings[] = get_string('not_learners', 'report_multicourse');
-        }
-        if (empty($this->_learners)) {
             $this->_courses = [];
         }
     }
@@ -846,6 +844,7 @@ class report_multicourse {
 class report_cohortcourses extends grade_report_multigrader {
 
     private $is_first = true;
+    private $teachers = [];
 
     public function __construct($courseid, $gpr, $context, $users = [], $is_first = true, $page = null, $sortitemid = null)
     {
@@ -861,6 +860,26 @@ class report_cohortcourses extends grade_report_multigrader {
         } else {
             $this->load_users();
         }
+        // get teachers
+        //$sql = 'SELECT ra.id as ra_id, u.id, u.firstname, u.lastname, cr.id as course_id
+        $sql = 'SELECT ra.id as ra_id, cr.id as course_id, u.* 
+                FROM {role_assignments} ra
+                     LEFT JOIN {context} c ON c.id = ra.contextid
+                     LEFT JOIN {user} u ON u.id = ra.userid
+                     LEFT JOIN {course} cr ON cr.id = c.instanceid
+                     LEFT JOIN {role} r ON r.id = ra.roleid
+                WHERE c.contextlevel = :contextlevel 
+                     AND u.deleted = :deleted AND cr.visible = :visible AND u.id <> :guestid
+                     AND c.instanceid = :courseid
+                     AND r.shortname in (\'teacher\', \'editingteacher\')
+                ORDER BY u.lastname, u.firstname, cr.shortname';
+
+        $this->teachers = $DB->get_records_sql($sql, [
+            'contextlevel'=>CONTEXT_COURSE,
+            //'roleid'=>$this->role_teacher->id,
+            'deleted'=>0, 'visible'=>1, 'guestid'=>$CFG->siteguest,
+            'courseid'=>$courseid,
+        ]);
     }
 
     // new table - transponired
@@ -876,6 +895,8 @@ class report_cohortcourses extends grade_report_multigrader {
         if ($this->is_first) {
             $headerrow = new html_table_row();
             $headerrow->attributes['class'] = 'heading';
+            $userrow = new html_table_row();
+            $userrow->attributes['class'] = 'heading';
 
             $courseheader = new html_table_cell();
             $courseheader->attributes['class'] = 'header';
@@ -885,9 +906,31 @@ class report_cohortcourses extends grade_report_multigrader {
             /*if (has_capability('gradereport/' . $CFG->grade_profilereport . ':view', $this->context)) {
                 $courseheader->colspan = 2;
             }*/
-            $courseheader->text = 'Course name'; //$arrows['studentname'];
-
+            $courseheader->text = get_string('mod_title', 'report_multicourse'); //$arrows['studentname'];
             $headerrow->cells[] = $courseheader;
+
+            $teacherheader = new html_table_cell();
+            $teacherheader->attributes['class'] = 'header';
+            $teacherheader->scope = 'col';
+            $teacherheader->header = true;
+            $teacherheader->id = 'teacherheader';
+            $teacherheader->text = get_string('teacher_title', 'report_multicourse'); //$arrows['studentname'];
+            $headerrow->cells[] = $teacherheader;
+
+            $grademaxheader = new html_table_cell();
+            $grademaxheader->attributes['class'] = 'header';
+            $grademaxheader->scope = 'col';
+            $grademaxheader->header = true;
+            $grademaxheader->id = 'grademaxheader';
+            $grademaxheader->text = get_string('grademax_title', 'report_multicourse'); //$arrows['studentname'];
+            $headerrow->cells[] = $grademaxheader;
+
+            $userheader = new html_table_cell();
+            $userheader->header = true;
+            $userheader->scope = 'col';
+            $userrow->cells[] = $userheader;
+            $userrow->cells[] = $userheader;
+            $userrow->cells[] = $userheader;
 
             $rowclasses = array('even', 'odd');
 
@@ -914,33 +957,36 @@ class report_cohortcourses extends grade_report_multigrader {
                 }
 
                 if (has_capability('gradereport/' . $CFG->grade_profilereport . ':view', $this->context)) {
-                    /*$userreportcell = new html_table_cell();
+                    $userreportcell = new html_table_cell();
                     $userreportcell->attributes['class'] = 'userreport';
-                    $userreportcell->header = true;*/
+                    $userreportcell->header = true;
                     $a = new stdClass();
                     $a->user = fullname($user);
                     $strgradesforuser = get_string('gradesforuser', 'grades', $a);
                     $url = new moodle_url('/grade/report/' . $CFG->grade_profilereport . '/index.php', array('userid' => $user->id, 'id' => $this->course->id));
-                    //$userreportcell->text = $OUTPUT->action_icon($url, new pix_icon('t/grades', $strgradesforuser));
-                    //$userreportcell->text = $OUTPUT->action_icon($url, new pix_icon('t/grades', $strgradesforuser));
-                    //$userrow->cells[] = $userreportcell;
-                    $usercell->text .= $OUTPUT->action_icon($url, new pix_icon('t/grades', $strgradesforuser));
+                    $userreportcell->text = $OUTPUT->action_icon($url, new pix_icon('t/grades', $strgradesforuser));
+                    $userreportcell->text = $OUTPUT->action_icon($url, new pix_icon('t/grades', $strgradesforuser));
+                    $userrow->cells[] = $userreportcell;
+                    $userreportcell->text = $OUTPUT->action_icon($url, new pix_icon('t/grades', $strgradesforuser));
                 }
                 $headerrow->cells[] = $usercell;
             }
             $transtable->data[] = $headerrow;
+            if (count($userrow->cells) > 1) {
+                $transtable->data[] = $userrow;
+            }
         }
 
         // --------------- build body: courses + mods + grades
         $rows = array();
         $this->rowcount = 0;
-        $numrows = count($this->gtree->get_levels());
-        $numusers = count($this->users);
-        $gradetabindex = 1;
-        $columnstounset = array();
-        $strgrade = $this->get_lang_string('grade');
-        $strfeedback = $this->get_lang_string("feedback");
-        $arrows = $this->get_sort_arrows();
+//        $numrows = count($this->gtree->get_levels());
+//        $numusers = count($this->users);
+//        $gradetabindex = 1;
+//        $columnstounset = array();
+//        $strgrade = $this->get_lang_string('grade');
+//        $strfeedback = $this->get_lang_string("feedback");
+//        $arrows = $this->get_sort_arrows();
 
         foreach ($this->gtree->get_levels() as $key => $row) {
             if ($key == 0) {
@@ -961,12 +1007,12 @@ class report_cohortcourses extends grade_report_multigrader {
                     $sortlink->param('sortitemid', $element['object']->id);
                 }
 
-                $eid = $element['eid'];
+                //$eid = $element['eid'];
                 $object = $element['object'];
                 $type = $element['type'];
-                $categorystate = @$element['categorystate'];
+                //$categorystate = @$element['categorystate'];
                 //$colspan = !empty($element['colspan'])? $element['colspan'] : 1;
-                $colspan = count($this->users) + 1;
+                $colspan = count($this->users) + 3;
                 $catlevel = !empty($element['depth']) ? 'catlevel' . $element['depth'] : '';
 
                 $itemcell = new html_table_cell();
@@ -983,12 +1029,27 @@ class report_cohortcourses extends grade_report_multigrader {
                     $thiscourse = $this->gtree->modinfo->get_course();
                     $itemcell->text = html_writer::link(new moodle_url('/grade/report/grader/index.php', ['id' => $thiscourse->id]), $thiscourse->shortname); // . ', ' . shorten_text($element['object']->get_name());
                     $itemcell->text .= $this->get_collapsing_icon($element);
+                    $itemcell->colspan = 1;
                     $graderow->cells[] = $itemcell;
+
+                    $teachercell = new html_table_cell();
+                    $teachercell->scope = 'col';
+                    $teachercell->colspan = 1; //count($this->users) + 2;
+                    $urls = [];
+                    foreach ($this->teachers as $teacher) {
+                        $urls[] = html_writer::link(new moodle_url('/user/view.php', ['id' => $teacher->id, /*'course' => $this->course->id*/]), fullname($teacher));
+                    }
+                    $teachercell->text = implode('<br>', $urls);
+                    $graderow->cells[] = $teachercell;
+
+                    $fillercell = new html_table_cell();
+                    $fillercell->colspan = count($this->users) + 1;
+                    $graderow->cells[] = $fillercell;
                 } else { // Element is a grade_item
                     //$itemmodule = $element['object']->itemmodule;
                     //$iteminstance = $element['object']->iteminstance;
                     //$colspan = 1;
-                    if ($element['object']->id == $this->sortitemid) {
+                    /*if ($element['object']->id == $this->sortitemid) {
                         if ($this->sortorder == 'ASC') {
                             $arrow = $this->get_sort_arrow('up', $sortlink);
                         } else {
@@ -996,7 +1057,7 @@ class report_cohortcourses extends grade_report_multigrader {
                         }
                     } else {
                         $arrow = $this->get_sort_arrow('move', $sortlink);
-                    }
+                    }*/
 
                     $headerlink = $this->gtree->get_element_header($element, true, $this->get_pref('showactivityicons'), false);
                     $itemcell->text = shorten_text($headerlink);
@@ -1007,9 +1068,15 @@ class report_cohortcourses extends grade_report_multigrader {
                         $itemcell->attributes['class'] .= ' dimmed_text';
                     }
                     $itemcell->colspan = 1; //$colspan
-                    $itemcell->header = true;
-                    $itemcell->scope = 'col';
                     $graderow->cells[] = $itemcell;
+
+                    $teachercell = new html_table_cell();
+                    $teachercell->text = '';
+                    $graderow->cells[] = $teachercell;
+
+                    $grademaxcell = new html_table_cell();
+                    $grademaxcell->text = $object->grademax;
+                    $graderow->cells[] = $grademaxcell;
 
                     // --- users cycle
                     $itemid = $object->id;

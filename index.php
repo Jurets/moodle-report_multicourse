@@ -39,7 +39,7 @@ $PAGE->requires->jquery();
 $PAGE->requires->jquery_plugin('ui');
 $PAGE->requires->jquery_plugin('ui-css');
 //$PAGE->requires->jquery_plugin('checkboxtree', 'gradereport_multigrader');
-//$PAGE->requires->css('/grade/report/multigrader/checkboxtree/css/checkboxtree.css');
+$PAGE->requires->css('/report/multicourse/styles.css');
 
 $page = optional_param('page', 0, PARAM_INT);   // active page
 $sortitemid = optional_param('sortitemid', 0, PARAM_ALPHANUM); // sort by which grade item

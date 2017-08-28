@@ -29,3 +29,6 @@ $string['pluginname'] = 'Звітність для гурту';
 $string['not_courses'] = 'Немає курсів для даного гурту';
 $string['not_learners'] = 'У даному гурті немає студентів';
 $string['to_index'] = 'До списку гуртів';
+$string['mod_title'] = 'Курс / Модуль';
+$string['grademax_title'] = 'Макс.бал';
+$string['teacher_title'] = 'Викладачі';
