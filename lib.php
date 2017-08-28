@@ -745,20 +745,24 @@ class report_multicourse {
 
     protected $_courses;
     protected $_learners;
+    protected $_warnings = [];
 
-    public function __construct($cohortid)
+    public function __construct(stdClass $cohort = null)
     {
         global $DB;
 
-        if (!$cohortid) {
+        if (!$cohort) {
             throw new invalid_parameter_exception('Parameter cohortid can not be empty');
         }
         $this->_courses = $DB->get_records_sql('SELECT c.id, c.fullname, c.shortname, e.sortorder
             FROM mdl_enrol e
               LEFT JOIN mdl_course c ON c.id = e.courseid
             WHERE e.enrol = :type AND e.customint1 = :cohortid
-            ORDER BY e.sortorder', ['type' => 'cohort', 'cohortid' => $cohortid]
+            ORDER BY e.sortorder', ['type' => 'cohort', 'cohortid' => $cohort->id]
         );
+        if (!count($this->_courses)) {
+            $this->_warnings[] =  get_string('not_courses', 'report_multicourse');
+        }
 
         $search = users_search_sql('');
         $this->_learners = $DB->get_records_sql("SELECT u.id,u.picture,u.firstname,u.lastname,u.firstnamephonetic,u.lastnamephonetic,u.middlename,u.alternatename,u.imagealt,u.email,u.department,u.institution
@@ -766,7 +770,13 @@ class report_multicourse {
                 JOIN {cohort_members} cm ON (cm.userid = u.id AND cm.cohortid = :cohortid)
                 JOIN {cohort} c ON cm.cohortid = c.id
             WHERE $search[0]  
-            ORDER BY u.lastname ASC, u.firstname ASC, u.id ASC", array_merge(['cohortid' => $cohortid, 'contextlevel' => CONTEXT_USER], $search[1]));
+            ORDER BY u.lastname ASC, u.firstname ASC, u.id ASC", array_merge(['cohortid' => $cohort->id, 'contextlevel' => CONTEXT_USER], $search[1]));
+        if (!count($this->_learners)) {
+            $this->_warnings[] = get_string('not_learners', 'report_multicourse');
+        }
+        if (empty($this->_learners)) {
+            $this->_courses = [];
+        }
     }
 
     public function get_courses() {
@@ -779,9 +789,12 @@ class report_multicourse {
 
     public function get_report($page = 0, $sortitemid = 0) {
         global $OUTPUT;
-        
-        $is_first = true;
 
+        foreach ($this->_warnings as $warning) {
+            echo $OUTPUT->notification($warning);
+        }
+
+        $is_first = true;
         $transtable = new html_table();
 
         foreach ($this->_courses as $thiscourse) {
@@ -1106,7 +1119,6 @@ class report_cohortcourses extends grade_report_multigrader {
                 $transtable->data[] = $graderow;
             }
         }
-        //return html_writer::table($transtable);
         return $transtable;
     }
 

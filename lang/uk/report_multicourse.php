@@ -23,9 +23,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['multicourse:view'] = 'View Multi course report';
-$string['pluginname'] = 'Multi Course Report';
+$string['multicourse:view'] = 'Дивитись Звітність для гурту';
+$string['pluginname'] = 'Звітність для гурту';
 
-$string['not_courses'] = 'There is not courses for this cohort';
-$string['not_learners'] = 'There is not learners in this cohort';
-$string['to_index'] = 'To cohorts list';
+$string['not_courses'] = 'Немає курсів для даного гурту';
+$string['not_learners'] = 'У даному гурті немає студентів';
+$string['to_index'] = 'До списку гуртів';
