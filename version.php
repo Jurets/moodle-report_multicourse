@@ -24,8 +24,8 @@
  */
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version = 2017081700;        // The current plugin version (Date: YYYYMMDDXX)
-$plugin->requires = 2017050500;        // Requires this Moodle version
+$plugin->version = 2017082800;        // The current plugin version (Date: YYYYMMDDXX)
+$plugin->requires = 2016120503; //2017050500;        // Requires this Moodle version
 $plugin->component = 'report_multicourse'; // Full name of the plugin (used for diagnostics)
 //$plugin->maturity  = MATURITY_BETA;
 //$plugin->release   = '0.9.4';

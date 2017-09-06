@@ -31,7 +31,7 @@ require_once($CFG->libdir . '/tablelib.php');
  * @uses grade_report
  * @package gradereport_multigrader
  */
-class grade_report_multigrader extends grade_report {
+class report_multigrader extends grade_report {
     /**
      * The final grades.
      * @var array $grades
@@ -803,7 +803,7 @@ class report_multicourse {
             grade_regrade_final_grades($courseid);
 
             if (has_capability('moodle/grade:viewall', $context)) {
-                if (has_capability('gradereport/multicourse:view', $context)) {
+                if (has_capability('report/multicourse:view', $context)) {
 
                     $gpr = new grade_plugin_return(array('type' => 'report', 'plugin' => 'multicourse', 'courseid' => $courseid, 'page' => $page));
 
@@ -841,7 +841,7 @@ class report_multicourse {
 /**
  * Class report_cohortcourses
  */
-class report_cohortcourses extends grade_report_multigrader {
+class report_cohortcourses extends report_multigrader {
 
     private $is_first = true;
     private $teachers = [];
