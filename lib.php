@@ -889,7 +889,7 @@ class report_cohortcourses extends report_multigrader {
         $showuserimage = $this->get_pref('showuserimage');
 
         $transtable->attributes['class'] = 'gradestable flexible boxaligncenter generaltable';
-        $transtable->id = 'user-grades';
+        $transtable->id = 'multicourse-grades';
 
         // build header
         if ($this->is_first) {

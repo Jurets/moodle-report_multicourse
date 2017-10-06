@@ -1,4 +1,33 @@
 /* http://htmlbook.ru/css/writing-mode */
-.user.cell {
+table#multicourse-grades {
+    font-size: 10px;
+    width: auto;
+    background-color: transparent;
+    border-style: solid;
+    border-width: 1px;
+    margin: 20px 0 0;
+}
+
+/*, table#multicourse-grades th.cell*/
+table#multicourse-grades td.cell {
+    padding-left: 5px;
+    padding-right: 5px;
+    vertical-align: middle;
+}
+/*, table#multicourse-grades th*/
+table#multicourse-grades td {
+    text-align: right;
+    border-style: solid;
+    border-width: 0 1px 1px 0;
+}
+
+table#multicourse-grades .user.cell {
     writing-mode: tb-rl;
+}
+
+/*
+* For scrolling of main content
+*/
+#region-main-box {
+    overflow: scroll;
 }
